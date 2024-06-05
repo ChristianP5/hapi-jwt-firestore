@@ -1,5 +1,10 @@
 const jwt = require('@hapi/jwt');
 
+const addRefreshToken = require('../services/addRefreshToken');
+const getRefreshToken = require('../services/getRefreshToken');
+const deleteRefreshToken = require('../services/deleteRefreshToken')
+
+
 const users = [
     {
         username: "Bob",
@@ -11,8 +16,6 @@ const users = [
     },
 ];
 
-let refreshTokens = [];
-
 const getProtectedHandler = (request, h) => {
     const response = h.response({
         status: 'success',
@@ -23,7 +26,7 @@ const getProtectedHandler = (request, h) => {
     return response;
 }
 
-const postLoginHandler = (request, h) => {
+const postLoginHandler = async (request, h) => {
 
     if(request.auth.isAuthenticated){
         return 'Already Authenticated!'
@@ -55,7 +58,9 @@ const postLoginHandler = (request, h) => {
 
     // Generate Refresh Access Token
     const refreshToken = generateRefreshToken(payload);
-    refreshTokens.push(refreshToken);
+    
+    // Add Refresh Token to Storage
+    await addRefreshToken(refreshToken);
     
     const response = h.response({
         status: 'success',
@@ -70,12 +75,12 @@ const postLoginHandler = (request, h) => {
     return response;
 }
 
-const postTokenHandler = (request, h) => {
+const postTokenHandler = async (request, h) => {
 
     const { refreshToken } = request.payload;
     
     // Valid Refresh Token?
-    if(!refreshToken || !refreshTokens.includes(refreshToken)){
+    if(!refreshToken){
         const response = h.response({
             status: 'fail',
             message: 'Invalid Refresh Token!',
@@ -84,6 +89,8 @@ const postTokenHandler = (request, h) => {
         response.code(400);
         return response;
     }
+
+    await getRefreshToken(refreshToken);
 
     // Valid Refresh Token
     const decodedToken = jwt.token.decode(refreshToken);
@@ -105,10 +112,10 @@ const postTokenHandler = (request, h) => {
     return response;
 }
 
-const postLogoutHandler = (request, h) => {
+const postLogoutHandler = async (request, h) => {
     const { refreshToken } = request.payload;
     // Valid Refresh Token?
-    if(!refreshToken || !refreshTokens.includes(refreshToken)){
+    if(!refreshToken){
         const response = h.response({
             status: 'fail',
             message: 'Invalid Refresh Token!',
@@ -118,8 +125,12 @@ const postLogoutHandler = (request, h) => {
         return response;
     }
 
+    await getRefreshToken(refreshToken);
+
     // Valid Refresh Token
-    refreshTokens = refreshTokens.filter(refreshToken => refreshToken!==refreshToken);
+
+    // Remove Refresh Token
+    await deleteRefreshToken(refreshToken);
 
     const response = h.response({
         status: 'success',

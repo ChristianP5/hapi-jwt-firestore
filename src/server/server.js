@@ -1,7 +1,8 @@
 const Hapi = require('@hapi/hapi');
 const routes = require('./routes');
-const { token } = require('@hapi/jwt');
 const dotenv = require('dotenv');
+
+const RetrievalError = require('../exceptions/RetrievalError');
 
 dotenv.config();
 
@@ -38,6 +39,27 @@ const init = async () => {
                 }
             };
         }
+    })
+
+    server.ext('onPreResponse', (request, h)=>{
+        const response = request.response;
+
+        if(response instanceof Error){
+
+            if(response instanceof RetrievalError){
+                console.error(response.stack);
+                const newResponse = h.response({
+                    status: 'fail',
+                    message: `${response.message}`,
+                })
+
+                newResponse.code(response.errorCode);
+                return newResponse;
+            }
+            
+        }
+
+        return h.continue;
     })
 
     server.auth.default('jwt_strategy');
